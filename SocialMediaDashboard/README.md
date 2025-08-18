@@ -1,109 +1,138 @@
-![نمایی از داشبورد](images/dash1.png)
+![نمایی از داشبورد](images/dashboard.png)
 
 ---
 
-# داشبورد فروش
+# Power BI Dashboard — Social Media Users & Income Analysis
 
-## معرفی
-
-این مخزن شامل یک داشبورد پاور بی‌آی بسیار زیبا و کاربردی است که برای تحلیل مجموعه داده فروش طراحی شده است. این داشبورد با بهره‌گیری از مدل‌سازی داده پیشرفته و DAX (عبارات تحلیل داده) دیدی عمیق نسبت به عملکرد فروش، رفتار مشتریان و روند محصولات ارائه می‌دهد و تجربه‌ای تعاملی و روان فراهم می‌کند.
+این مخزن شامل مراحل کامل ساخت یک داشبورد **Power BI** بر پایه‌ی دیتاست «میانگین زمان صرف‌شده کاربر در شبکه‌های اجتماعی» است؛ به‌همراه آماده‌سازی داده‌ها (Power Query)، مدل‌سازی، نوشتن Measureها (DAX)، ساخت پارامتر آستانه (What‑If) و طراحی گزارش.
 
 ---
 
-## مدل‌سازی داده
+## 1) منبع داده (Data Source)
+- **Kaggle** — *Average Time Spent By A User On Social Media* (حاوی ستون‌هایی مانند: `age`, `gender`, `time_spent`, `platform`, `interests`, `location`, `demographics`, `profession`, `income`, `indebt`, `isHomeOwner`, `Owns_Car`).  
+- لینک دیتاست را اینجا قرار دهید: https://www.kaggle.com/datasets/imyjoshua/average-time-spent-by-a-user-on-social-media
 
-مجموعه داده شامل سه شیت اصلی است: **سفارشات (Orders)**، **مرجوعی‌ها (Returns)** و **هدف‌ها (Target)** که به دقت مدل‌سازی شده‌اند تا پرس‌وجوهای سریع و نمایش‌های معنادار را ممکن سازند:
-
-* **ساختار داده نرمال شده:**
-
-  * ارتباط بین شیت سفارشات و مرجوعی‌ها بر اساس شناسه سفارش (Order ID) برای پیگیری دقیق مرجوعی‌ها.
-  * ادغام شیت هدف برای مقایسه فروش واقعی با اهداف تعیین شده در دسته‌بندی‌های مبلمان، لوازم اداری و فناوری.
-
-* **روابط:**
-
-  * پیاده‌سازی مدل ستاره‌ای (Star Schema) با جدول سفارشات به عنوان جدول واقعیت (Fact Table) و ابعاد مرتبط مانند محصول، مشتری و جغرافیا.
-  * این ساختار عملکرد را بهینه کرده و امکان فیلترهای پویا در نمودارها را فراهم می‌کند.
-
-* **پاک‌سازی داده‌ها:**
-
-  * رسیدگی به مقادیر گمشده، استانداردسازی فرمت تاریخ‌ها (تبدیل تاریخ‌های اکسل به فرمت قابل خواندن) و حذف داده‌های تکراری برای تضمین کیفیت داده.
-
-* **ستون‌های محاسباتی:**
-
-  * افزودن ستون‌هایی مانند فروش خالص (با در نظر گرفتن تخفیف‌ها) و حاشیه سود برای تحلیل بهتر.
+> اگر از فایل `data.csv` همین مخزن استفاده می‌کنید، نیازی به دانلود مجدد نیست.
 
 ---
 
-## پیاده‌سازی DAX
+## 2) آماده‌سازی داده‌ها (Power Query)
+- Trim/Replace/Format برای تمیزکاری متون
+- تبدیل انواع داده‌ها (عدد، متن، بولین)
+- ساخت ستون‌های کمکی (مثلاً **Index** در صورت نیاز)
+- حذف Nullها و ردیف‌های ناسازگار
+- بارگذاری به مدل (Close & Apply)
 
-عبارات DAX نقش کلیدی در ایجاد محاسبات پیچیده و معیارهای پویا داشتند:
+---
 
-* **معیارهای کلیدی (KPI):**
-  ساخت معیارهایی مانند فروش کل، سود کل و نرخ بازگشت.
-
-  ```DAX
-  Total Sales = SUM('Orders'[Sales]) * (1 - AVERAGE('Orders'[Discount]))
+## 3) مدل‌سازی و روابط (Modeling)
+- جدول Fact: `Users`  
+- جداول ابعادی (اختیاری): `Dim_Platform`, `Dim_Location`, `Dim_Profession` …  
+- ایجاد روابط 1:* بین ابعاد و جدول `Users` (کلیدها: نام یا ID استاندارد شده)
+- ساخت جدول مخصوص Measureها:  
+  ```dax
+  _Measures = DATATABLE("Dummy", STRING, { {""} })
   ```
+  (سپس ستون `Dummy` را Hide کنید)
 
-* **هوش زمانی:**
-  استفاده از توابعی مانند `DATEADD` و `TOTALYTD` برای تحلیل روندهای فروش در طول زمان و مقایسه سال به سال.
+---
 
-  ```DAX
-  Sales YoY Growth = DIVIDE(
-      [Total Sales] - CALCULATE([Total Sales], DATEADD('Orders'[Order Date], -1, YEAR)),
-      CALCULATE([Total Sales], DATEADD('Orders'[Order Date], -1, YEAR))
+## 4) پارامتر آستانه (What‑If Parameter)
+- Modeling → **New parameter (What‑If)**  
+  - Name: `IncomeThreshold`  
+  - Data type: Whole Number (مثلاً Min: 0, Max: 100000, Increment: 1000, Default: 15000)  
+  - تیک **Add slicer to this page** را فعال کنید.
+- Measure آستانه انتخاب‌شده:
+  ```dax
+  Selected Threshold =
+  COALESCE(
+      SELECTEDVALUE(IncomeThreshold[IncomeThreshold Value]),
+      15000
   )
   ```
 
-* **منطق شرطی:**
-  پیاده‌سازی فیلترها و تحلیل سناریوهای خاص مانند فروش بر اساس نوع مشتری یا دسته محصول با استفاده از `CALCULATE` و `FILTER`.
+---
 
-* **مقایسه با هدف:**
-  ایجاد معیارهایی برای مقایسه فروش واقعی با اهداف موجود در شیت هدف:
+## 5) Measureهای کلیدی (DAX)
+- تعداد کل کاربران:
+  ```dax
+  Total Users = COUNTROWS('Users')
+  ```
 
-  ```DAX
-  Sales vs Target = [Total Sales] - LOOKUPVALUE('Target'[Target Sales], 'Target'[Category], 'Orders'[Category])
+- درآمد کل:
+  ```dax
+  Total Income = SUM('Users'[income])
+  ```
+
+- میانگین درآمد:
+  ```dax
+  Average Income = AVERAGE('Users'[income])
+  ```
+
+- کاربران بالای آستانه:
+  ```dax
+  Users Above Threshold =
+  CALCULATE(
+      [Total Users],
+      FILTER(
+          ALLSELECTED('Users'),
+          'Users'[income] >= [Selected Threshold]
+      )
+  )
+  ```
+
+- درصد کاربران بالای آستانه:
+  ```dax
+  Pct Users Above Threshold =
+  DIVIDE([Users Above Threshold], [Total Users], 0)
+  ```
+
+- درآمد کل بالای آستانه:
+  ```dax
+  Total Income Above Threshold =
+  CALCULATE(
+      [Total Income],
+      FILTER(
+          ALLSELECTED('Users'),
+          'Users'[income] >= [Selected Threshold]
+      )
+  )
+  ```
+
+- میانگین درآمد بالای آستانه:
+  ```dax
+  Average Income Above Threshold =
+  DIVIDE([Total Income Above Threshold], [Users Above Threshold], 0)
   ```
 
 ---
 
-## ویژگی‌های داشبورد
+## 6) طراحی داشبورد (Report)
+- **Header KPI Cards**: `Total Users`, `Total Income`, `Average Income`, `Users Above Threshold`, `Pct Users Above Threshold`
+- **Slicers**: آستانه درآمد (`IncomeThreshold`)، و فیلترهای دیگر (Platform, Gender, Location)
+- **Charts**: Bar/Column (توزیع کاربران)، Donut (سهم پلتفرم)، Line (در صورت وجود تاریخ)
+- **KPI Visual**: Indicator = `Average Income Above Threshold`، Target = `Selected Threshold`
 
-این داشبورد هم از نظر ظاهر و هم عملکرد بسیار قوی طراحی شده است:
-
-* **ویژوال‌های تعاملی:**
-  نمودارهای میله‌ای، خطی و نقشه‌های جغرافیایی برای نمایش فروش، سود و مرجوعی‌ها بر اساس منطقه، نوع مشتری و دسته محصول.
-
-* **برشگرها و فیلترهای پویا:**
-  برشگرهای تعاملی برای تاریخ سفارش، دسته‌بندی و نوع مشتری جهت کاوش دقیق‌تر داده‌ها.
-
-* **طراحی مدرن:**
-  استفاده از پالت رنگی مدرن، تایپوگرافی یکپارچه و چیدمان ساده و قابل فهم برای افزایش تجربه کاربری.
-
-* **بینش‌های کلیدی:**
-  نمایش محصولات پرفروش، مناطق با نرخ بازگشت بالا و سودآوری بر اساس بخش‌های مشتری، همراه با راهنمایی‌های دقیق.
+> برای جلوگیری از Summarize اشتباه روی ستون‌های شناسه (ID)، نوع داده آنها را **Text** کنید یا در ویژوال از **Don’t Summarize** استفاده کنید.
 
 ---
 
-## نکته جالب
-
-یکی از یافته‌های جالب این بود که تخفیف‌ها تاثیر چشمگیری بر سودآوری دارند؛ به عنوان مثال، تخفیف‌های سنگین روی محصولات فناوری (مثل تلفن Cisco IP Phone) باعث شده حاشیه سود منفی شود که نیازمند استراتژی قیمت‌گذاری بهتر است.
-
----
-
-## نحوه استفاده
-
-1. این مخزن را کلون کنید.
-2. فایل `.pbix` را در Power BI Desktop باز کنید.
-3. مجموعه داده (`sale_total.xlsx`) را بارگذاری کنید یا به منبع داده مشابه متصل شوید.
-4. داشبورد را با استفاده از برشگرها، کاوش‌های عمقی و ویژوال‌های تعاملی بررسی کنید.
+## 7) ساختار پوشه‌ها
+```
+.
+├─ data/
+│  └─ data.csv
+├─ assets/
+│  └─ dashboard-overview.png
+├─ dashboard.pbix
+└─ README.md
+```
 
 ---
 
-## بهبودهای آینده
-
-* استفاده از قابلیت‌های هوش مصنوعی Power BI برای پیش‌بینی روند فروش.
-* افزودن تحلیل‌های زمانی دقیق‌تر مثل ماهانه یا فصلی.
-* بهبود دسترسی با افزودن تم‌های کنتراست بالا و پشتیبانی از صفحه‌خوان.
+## 8) اجرای پروژه (How to Run)
+1. فایل `dashboard.pbix` را باز کنید.
+2. اگر از منبع دیگری استفاده می‌کنید، مسیر فایل CSV را در Power Query تنظیم و **Refresh** کنید.
+3. اسلایدر آستانه را جابه‌جا کنید و KPIها/نمودارها را بررسی نمایید.
 
 ---
